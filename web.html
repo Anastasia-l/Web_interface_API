@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Wikipedia Article Parser</title>
+        <style>
+            body {font-family: Arial, sans-serif; padding: 20px;}
+            .filter-box {margin-bottom: 20px;}
+            .article {border: 1px solid #ddd; padding: 15px; margin-bottom: 10px;}
+            .stats-box, .plots-box {margin-top: 30px;}
+        </style>
+    </head>
+    <body>
+        <h1>Поиск статей</h1>
+
+        <div class="filter-box">
+            <input type="text" id="title" placeholder="Заголовок">  
+            <select id="sort_by">
+                <option value="id">ID</option>
+                <option value="timestamp">Дата</option>
+                <option value="total_views">Просмотров всего</option>
+                <option value="average_daily_views">Среднее число просмотров</option>
+            </select>
+            <select id="order">
+                <option value="asc">По возрастанию</option>
+                <option value="desc">По убыванию</option>
+            </select>
+            <button onclick="loadArticles()">Поиск</button>
+        </div>
+
+    <div id="results"></div>
+
+    <div class="stats-box">
+        <h2>Статистика</h2>
+        <div id="stats"></div>
+    </div>
+
+    <div class="plots-box">
+        <h2>Визуализация</h2>
+        <div id="plots"></div>
+    </div>
+
+    <script>
+        async function loadArticles() {
+            const title = document.getElementById("title").value;
+            const sortBy = document.getElementById("sort_by").value;
+            const order = document.getElementById("order").value;
+
+            const url = new URL("http://localhost:8000/wiki_history/")
+            url.searchParams.append("title", title);
+            url.searchParams.append("sort_by", sortBy);
+            url.searchParams.append("order", order);
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Ошибка запроса");
+                const articles = await response.json();
+
+                const resultsDiv = document.getElementById("results");
+                resultsDiv.innerHTML = articles.map(article => `
+                <div class="article">
+                    <h3>${article.title}</h3>
+                    <p>${article.content.slice(0, 39)}...</p>
+                    <p>Автор последних изменений: ${article.editor}</p>
+                    <p>Просмотров всего: ${article.total_views}</p>
+                    <p>Среднее число просмотров за день: ${article.average_daily_views}</p>
+                    <p>Дата получения данных с сайта: ${new Date(article.timestamp).toLocaleDateString('en-US')}</p>
+                </div>
+                `).join("");
+
+
+            } catch(error) {
+                alert(error.message);
+            }
+
+        }
+    </script>
+
+    <script>
+        async function loadStats() {
+            try {
+                const response = await fetch("http://localhost:8000/stats/")
+                if (!response.ok) throw new Error("HTTP error! status: ${response.status}");
+                const stats = await response.json();
+
+                const statsHtml = `
+                <p>Всего записей: ${stats.basic_stats.total_entries}</p>
+                <p>Средний размер статьи: ${Math.round(stats.basic_stats.average_char_count)} символов</p>
+                <p>Максимальные просмотры за последние 20 дней: ${stats.max_views_entry.views} </p>
+                <p>Минимальные просмотры за последние 20 дней: ${stats.min_views_entry.views}</p>
+                    `;
+                document.getElementById("stats").innerHTML = statsHtml;
+            } catch(error) {
+                console.error(error)
+            }
+        }
+
+        async function loadPlots() {
+
+            try {
+                const plotsContainer = document.getElementById('plots');
+                plotsContainer.innerHTML = "";
+
+                const response1 = await fetch("http://localhost:8000/plots/content/evolution");
+                plotsContainer.innerHTML += await response1.text();
+
+                const response2 = await fetch("http://localhost:8000/plots/views");
+                plotsContainer.innerHTML += await response2.text();
+            } catch(error) {
+                console.error(error);
+            }
+        }
+
+        async function loadAllData() {
+            await loadArticles();
+            await loadStats();
+            await loadPlots();
+        }
+
+        loadAllData();
+
+    </script>
+
+
+    </body>
+</html>
